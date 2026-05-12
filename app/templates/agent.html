@@ -1,0 +1,1460 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TelecomAI — Agent Portal</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet" />
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --red: #D9482B;
+      --red-d: #B93820;
+      --bg:
+        radial-gradient(circle at top left, #FFF1EC 0%, transparent 25%),
+        radial-gradient(circle at top right, #EEF4FF 0%, transparent 30%),
+        #F6F7FB;
+      --surface: rgba(255, 255, 255, .88);
+      --border: #E5E7EB;
+      --t1: #111827;
+      --t2: #374151;
+      --t3: #6B7280;
+      --green: #4F8A63;
+      --green-bg: rgba(79, 138, 99, .12);
+      --blue: #2563EB;
+      --blue-bg: rgba(37, 99, 235, .12);
+      --amber: #D97706;
+      --amber-bg: rgba(217, 119, 6, .12);
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      min-height: 100vh;
+      color: var(--t1);
+    }
+
+    /* ── TOPBAR ── */
+    .topbar {
+      height: 60px;
+      background: #312d2a;
+      display: flex;
+      align-items: center;
+      padding: 0 28px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo img {
+      width: 40px;
+      height: 40px;
+      object-fit: contain;
+    }
+
+    .portal-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: #E5E7EB;
+    }
+
+    .spacer {
+      flex: 1;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.4;
+      }
+    }
+
+    /* ── WORKSPACE ── */
+    .workspace {
+      display: grid;
+      grid-template-columns: 400px 1fr;
+      height: calc(100vh - 60px);
+      overflow: hidden;
+    }
+
+    /* ── LEFT PANEL ── */
+    .customer-panel {
+      background: #FAFBFC;
+      border-right: 1px solid #E5E7EB;
+      overflow-y: auto;
+      height: 100%;
+    }
+
+    .panel-inner {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+
+
+
+    .section-block {
+      padding: 14px 16px;
+      border-bottom: 1px solid #EAECF0;
+      background: white;
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .ov-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .ov-stat {
+      background: #F9FAFB;
+      border-radius: 10px;
+      padding: 10px 8px;
+    }
+
+    .ov-num {
+      font-size: 20px;
+      font-weight: 800;
+    }
+
+    .ov-lbl {
+      font-size: 9px;
+      color: var(--t3);
+      font-weight: 600;
+    }
+
+    .issue-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .itag {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+
+    .itag-call {
+      background: #FEF3C7;
+      color: #92400E;
+    }
+
+    .itag-data {
+      background: var(--blue-bg);
+      color: var(--blue);
+    }
+
+    .itag-billing {
+      background: var(--green-bg);
+      color: var(--green);
+    }
+
+    .itag-network {
+      background: #FEF2F2;
+      color: #B91C1C;
+    }
+
+    .ticket-table-head {
+      display: grid;
+      grid-template-columns: 68px 1fr 46px 42px;
+      gap: 6px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #E5E7EB;
+    }
+
+    .ticket-table-row {
+      display: grid;
+      grid-template-columns: 68px 1fr 46px 42px;
+      gap: 6px;
+      align-items: center;
+      padding: 7px 0;
+      border-bottom: 1px solid #F3F4F6;
+      cursor: pointer;
+    }
+
+    .tth {
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--t3);
+    }
+
+    .ttr-id {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--red);
+    }
+
+    .ttr-type {
+      font-size: 11px;
+    }
+
+    .priority-pill {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 999px;
+      text-align: center;
+    }
+
+    .p-high {
+      background: #FEF2F2;
+      color: #B91C1C;
+    }
+
+    .p-medium {
+      background: #FEF3C7;
+      color: #92400E;
+    }
+
+    .p-low {
+      background: #F0FDF4;
+      color: #15803D;
+    }
+
+    .ne-row {
+      display: flex;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid #F3F4F6;
+    }
+
+    .ne-ico {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ne-body {
+      flex: 1;
+    }
+
+    .ne-title {
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .ne-sub {
+      font-size: 11px;
+      color: var(--t3);
+    }
+
+    .ne-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 999px;
+    }
+
+    .ne-badge.red {
+      background: #FEF2F2;
+      color: #B91C1C;
+    }
+
+    .ne-badge.green {
+      background: #F0FDF4;
+      color: #15803D;
+    }
+
+    /* ── MAIN ── */
+    .main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .page-header {
+      margin-bottom: 20px;
+    }
+
+    .page-header h1 {
+      font-size: 36px;
+      font-weight: 800;
+      letter-spacing: -1px;
+    }
+
+    .page-header p {
+      margin-top: 6px;
+      color: var(--t3);
+    }
+
+    .chat-layout {
+      width: 100%;
+      max-width: 1100px;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .chat-shell {
+      background: rgba(255, 255, 255, .78);
+      border: 1px solid rgba(255, 255, 255, .7);
+      backdrop-filter: blur(10px);
+      border-radius: 24px;
+      overflow: hidden;
+      box-shadow: 0 12px 40px rgba(15, 23, 42, .06);
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* ── CHAT AREA ── */
+    #chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      min-height: 0;
+    }
+
+    .main-panel {
+      overflow: hidden;
+      padding: 24px;
+      display: flex;
+      justify-content: center;
+      min-width: 0;
+    }
+
+    /* ── MESSAGES ── */
+    .message-row {
+      display: flex;
+    }
+
+    .message {
+      max-width: 82%;
+      padding: 16px 18px;
+      border-radius: 18px;
+      line-height: 1.7;
+      font-size: 14px;
+      box-shadow: 0 4px 14px rgba(15, 23, 42, .04);
+    }
+
+    .assistant-row {
+      justify-content: flex-start;
+    }
+
+    .assistant {
+      background: white;
+      border: 1px solid #EEF2F7;
+      color: var(--t1);
+    }
+
+    /* ── Markdown rendered styles ── */
+    .assistant strong {
+      font-weight: 700;
+      color: var(--t1);
+    }
+
+    .assistant em {
+      font-style: italic;
+    }
+
+    .assistant code {
+      background: #F3F4F6;
+      border: 1px solid #E5E7EB;
+      border-radius: 5px;
+      padding: 1px 6px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      color: var(--red);
+    }
+
+    .assistant ul,
+    .assistant ol {
+      padding-left: 20px;
+      margin: 6px 0;
+    }
+
+    .assistant li {
+      margin: 3px 0;
+    }
+
+    .assistant h1,
+    .assistant h2,
+    .assistant h3 {
+      font-weight: 700;
+      margin: 10px 0 6px;
+      letter-spacing: -0.3px;
+    }
+
+    .assistant h1 {
+      font-size: 18px;
+    }
+
+    .assistant h2 {
+      font-size: 16px;
+    }
+
+    .assistant h3 {
+      font-size: 14px;
+    }
+
+    .assistant blockquote {
+      border-left: 3px solid var(--red);
+      padding-left: 12px;
+      color: var(--t3);
+      margin: 6px 0;
+    }
+
+    .assistant hr {
+      border: none;
+      border-top: 1px solid #E5E7EB;
+      margin: 10px 0;
+    }
+
+    .user-row {
+      flex-direction: column;
+      align-items: flex-end;
+    }
+
+    .user {
+      background: linear-gradient(135deg, #D9482B, #F97316);
+      color: white;
+      word-break: break-word;
+    }
+
+    .typing {
+      color: var(--t3);
+      font-style: italic;
+    }
+
+    /* ── MESSAGE ACTIONS ── */
+    .message-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 8px;
+      padding-right: 4px;
+    }
+
+    .message-action-btn {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+
+      background: rgba(255, 255, 255, .72);
+      border: 1px solid rgba(217, 72, 43, .12);
+
+      color: #7C665A;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      cursor: pointer;
+      transition: all .18s ease;
+
+      backdrop-filter: blur(8px);
+    }
+
+    .message-action-btn:hover {
+      background: #FFF7F3;
+      border-color: rgba(217, 72, 43, .28);
+      color: var(--red);
+      transform: translateY(-1px);
+    }
+
+    /* ── TABLE ── */
+    .ai-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 13px;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .ai-table th {
+      background: #F3F4F6;
+      color: #111827;
+      text-align: left;
+      padding: 10px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .ai-table td {
+      padding: 10px 12px;
+      border-top: 1px solid #EEF2F7;
+    }
+
+    .ai-table tr:hover td {
+      background: #FAFAFA;
+    }
+
+    /* ── INPUT AREA ── */
+    .input-area {
+      border-top: 1px solid #EEF2F7;
+      padding: 18px;
+      background: rgba(255, 255, 255, .9);
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+      flex-direction: column;
+    }
+
+    /* ── NEXT ACTIONS (above input) ── */
+    .next-actions {
+      width: 100%;
+      display: none;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .next-actions.visible {
+      display: flex;
+    }
+
+    .next-action-btn {
+      background: white;
+      border: 1px solid #E5E7EB;
+      border-radius: 10px;
+      padding: 7px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--t2);
+      cursor: pointer;
+      font-family: inherit;
+      transition: .15s ease;
+      white-space: nowrap;
+    }
+
+    .next-action-btn:hover {
+      border-color: var(--red);
+      color: var(--red);
+      background: #FFF5F3;
+    }
+
+    /* ── EDIT BANNER ── */
+    .edit-banner {
+      width: 100%;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: #FEF3C7;
+      border: 1px solid #FCD34D;
+      border-radius: 12px;
+      font-size: 13px;
+      color: #92400E;
+      font-weight: 500;
+    }
+
+    .edit-banner button {
+      background: none;
+      border: 1px solid #D97706;
+      color: #92400E;
+      border-radius: 8px;
+      padding: 4px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: .15s ease;
+    }
+
+    .edit-banner button:hover {
+      background: #FCD34D;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 14px;
+      align-items: flex-end;
+      width: 100%;
+    }
+
+    textarea {
+      flex: 1;
+      min-height: 60px;
+      max-height: 200px;
+      resize: vertical;
+      border: 1px solid #D1D5DB;
+      border-radius: 16px;
+      padding: 16px;
+      font-family: inherit;
+      font-size: 14px;
+      outline: none;
+      background: white;
+      transition: .2s ease;
+    }
+
+    textarea:focus {
+      border-color: var(--red);
+      box-shadow: 0 0 0 4px rgba(217, 72, 43, .12);
+    }
+
+    .area-stat {
+      position: relative;
+    }
+
+    .ov-lbl-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .clear-area-btn {
+      border: none;
+      background: #FFF1EC;
+      color: var(--red);
+
+      font-size: 9px;
+      font-weight: 700;
+
+      padding: 2px 7px;
+      border-radius: 999px;
+
+      cursor: pointer;
+
+      transition: .15s ease;
+    }
+
+    .clear-area-btn:hover {
+      background: #FFE4DB;
+    }
+
+    .send-btn {
+      width: 60px;
+      height: 60px;
+
+      flex-shrink: 0;
+
+      border: none;
+      border-radius: 22px;
+
+      background: linear-gradient(135deg, #D9482B, #F97316);
+
+      color: white;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      cursor: pointer;
+      transition: .2s ease;
+
+      box-shadow: 0 8px 24px rgba(217, 72, 43, .18);
+    }
+
+    .input-row {
+      align-items: stretch;
+    }
+
+    .welcome-screen {
+      flex: 1;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      width: 100%;
+      min-height: 100%;
+    }
+
+    .welcome-header {
+      width: 100%;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+    }
+
+    .welcome-header h2 {
+      font-size: 48px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      color: var(--t1);
+      margin: 0;
+    }
+
+    .welcome-logo {
+      width: 52px;
+      height: 52px;
+      object-fit: contain;
+    }
+
+    .wave {
+      font-size: 42px;
+      animation: waveAnim 2.5s infinite;
+      transform-origin: 70% 70%;
+    }
+
+    @keyframes waveAnim {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      10% {
+        transform: rotate(14deg);
+      }
+
+      20% {
+        transform: rotate(-8deg);
+      }
+
+      30% {
+        transform: rotate(14deg);
+      }
+
+      40% {
+        transform: rotate(-4deg);
+      }
+
+      50% {
+        transform: rotate(10deg);
+      }
+
+      60% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(0deg);
+      }
+    }
+
+    .send-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 24px rgba(217, 72, 43, .24);
+    }
+
+    .send-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    /* ── SCROLLBAR ── */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #D1D5DB;
+      border-radius: 999px;
+    }
+
+    /* ── RESPONSIVE ── */
+    @media(max-width:768px) {
+      .main {
+        padding: 16px;
+      }
+
+      .page-header h1 {
+        font-size: 28px;
+      }
+
+      .message {
+        max-width: 100%;
+      }
+
+      .input-row {
+        flex-direction: column;
+      }
+
+      .send-btn {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="logo">
+      <img src="/static/oracle_logo.png" alt="Oracle" onerror="this.style.display='none'" />
+      <span class="portal-name">TelecomAI Platform</span>
+    </div>
+    <div class="spacer"></div>
+
+  </div>
+
+  <!-- WORKSPACE -->
+  <div class="workspace">
+
+    <!-- LEFT PANEL -->
+    <div class="customer-panel">
+      <div class="section-block">
+        <div class="section-header">
+          <span class="section-title">Open Ticket Overview</span>
+        </div>
+
+        <div class="ov-grid">
+          <div class="ov-stat">
+            <div class="ov-num" id="ovOpen">0</div>
+            <div class="ov-lbl">Open Tickets</div>
+          </div>
+
+          <div class="ov-stat">
+            <div class="ov-num" id="ovOldest">—</div>
+            <div class="ov-lbl">Oldest Open</div>
+          </div>
+
+          <div class="ov-stat area-stat">
+            <div class="ov-num" id="ovArea">ALL</div>
+
+            <div class="ov-lbl-row">
+              <span class="ov-lbl">Selected Area</span>
+
+              <button id="clearAreaBtn" class="clear-area-btn" onclick="clearAreaFilter()" style="display:none;">
+                Clear
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="issue-tags" id="issueTags"></div>
+      </div>
+
+      <div class="section-block">
+        <div class="section-header">
+          <span class="section-title">Search Tickets</span>
+        </div>
+
+        <input type="text" id="ticketSearch" placeholder="Search tickets..."
+          style="width:100%;padding:10px;border:1px solid #D1D5DB;border-radius:10px;" oninput="filterTickets()" />
+      </div>
+
+      <div class="section-block">
+        <div class="section-header">
+          <span class="section-title">Open Tickets</span>
+        </div>
+
+        <div class="ticket-table-head">
+          <span class="tth">Ticket</span>
+          <span class="tth">Issue</span>
+          <span class="tth">Priority</span>
+          <span class="tth">Age</span>
+        </div>
+
+        <div id="activeTicketRows"></div>
+      </div>
+
+      <div class="section-block">
+        <div class="section-header">
+          <span class="section-title">Network Events</span>
+        </div>
+
+        <div id="networkEventRows"></div>
+      </div>
+    </div>
+
+    <!-- RIGHT CHAT -->
+    <div class="main-panel">
+
+      <div class="chat-layout">
+        <div class="page-header">
+          <h1>AI Agent Console</h1>
+        </div>
+
+        <div class="chat-shell">
+
+          <div id="chat">
+
+            <div id="welcomeScreen" class="welcome-screen">
+
+              <div class="welcome-header">
+
+                <img src="/static/oracle_logo.png" class="welcome-logo" alt="ARIA" />
+
+                <h2>Hello! I'm ARIA</h2>
+
+                <span class="wave">👋</span>
+
+              </div>
+
+            </div>
+
+          </div>
+
+          <div class="input-area">
+
+            <div class="next-actions" id="nextActions"></div>
+
+            <div class="edit-banner" id="editBanner">
+              <span>✏️ Editing previous prompt — changes will re-run from this point</span>
+              <button onclick="cancelEdit()">Cancel</button>
+            </div>
+
+            <div class="input-row">
+              <textarea id="messageInput"
+                placeholder="Ask ARIA about outages, tickets, SLAs, customers, or network incidents..."></textarea>
+              <button class="send-btn" id="sendBtn" onclick="sendMessage()"><svg xmlns="http://www.w3.org/2000/svg"
+                  width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-send-icon lucide-send">
+                  <path
+                    d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z" />
+                  <path d="m21.854 2.147-10.94 10.939" />
+                </svg></button>
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    const chat = document.getElementById('chat');
+    const input = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
+
+    let conversation = [];
+    let editingIndex = null;
+    let activeController = null;
+    let allOpenTickets = [];
+    let selectedArea = null;
+
+    // ─── SCROLL ───────────────────────────────────────
+    function scrollBottom() {
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    // ─── ESCAPE HTML ──────────────────────────────────
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // ─── ADD ASSISTANT MESSAGE ────────────────────────
+    function addMessage(html, className = 'assistant') {
+      const row = document.createElement('div');
+      row.className = `message-row ${className}-row`;
+      const div = document.createElement('div');
+      div.className = `message ${className}`;
+      div.innerHTML = html;
+      row.appendChild(div);
+      chat.appendChild(row);
+      scrollBottom();
+      return div;
+    }
+
+    function clearAreaFilter() {
+
+      selectedArea = null;
+
+      loadTicketPanel();
+    }
+
+    // ─── ADD USER MESSAGE ─────────────────────────────
+    function addUserMessage(text, index) {
+      const row = document.createElement('div');
+      row.className = 'message-row user-row';
+      const div = document.createElement('div');
+      div.className = 'message user';
+      const textNode = document.createElement('div');
+      textNode.textContent = text;
+      div.appendChild(textNode);
+      const actions = document.createElement('div');
+      actions.className = 'message-actions';
+      const editBtn = document.createElement('button');
+      editBtn.className = 'message-action-btn';
+      editBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pencil-icon lucide-pencil"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>';
+      editBtn.onclick = () => editPrompt(text, index);
+      actions.appendChild(editBtn);
+
+      row.appendChild(div);
+      row.appendChild(actions);
+
+      chat.appendChild(row);
+      scrollBottom();
+      return div;
+    }
+
+    // ─── MARKDOWN RENDERER ───────────────────────────
+    function renderMarkdown(raw) {
+      if (!raw) return '';
+
+      // Step 1: strip NEXT_ACTIONS block FIRST before any other processing
+      let text = raw
+        .replace(/\[NEXT_ACTIONS\][\s\S]*?\[\/NEXT_ACTIONS\]/g, '')
+        .replace(/\[NEXT_ACTIONS\][\s\S]*/g, '')
+        .trim();
+
+      // Step 2: also strip any leaked <function=...> artifacts from llama
+      text = text.replace(/<function=\w+>[\s\S]*?<\/function>/g, '').trim();
+      text = text.replace(/<function=\w+>[\s\S]*/g, '').trim(); // unclosed tag
+
+      // Step 3: if nothing left after stripping, return empty (caller handles fallback)
+      if (!text) return '';
+
+      // Step 4: process markdown tables BEFORE escaping HTML entities
+      let tableHtml = '';
+      if (text.includes('|')) {
+        const lines = text.split('\n');
+        const hasTable = lines.some(l => l.trim().startsWith('|'));
+        if (hasTable) {
+          let inTable = false;
+          let tHtml = '<table class="ai-table">';
+          let isHeader = true;
+          const nonTableLines = [];
+          for (const line of lines) {
+            if (line.trim().startsWith('|')) {
+              if (/^\s*\|[\s\-:]+\|/.test(line)) { isHeader = false; continue; } // separator
+              const cols = line.split('|').map(c => c.trim()).filter(Boolean);
+              tHtml += '<tr>' + cols.map(c => isHeader ? `<th>${escapeHtml(c)}</th>` : `<td>${escapeHtml(c)}</td>`).join('') + '</tr>';
+              isHeader = false;
+              inTable = true;
+            } else {
+              nonTableLines.push(line);
+            }
+          }
+          tHtml += '</table>';
+          text = nonTableLines.join('\n');
+          tableHtml = inTable ? tHtml : '';
+        }
+      }
+
+      // Step 5: escape HTML entities in remaining prose
+      let html = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+      // Step 6: apply markdown formatting
+      html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+      html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+      html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+      html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+      html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+      html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+      html = html.replace(/^[-*_]{3,}$/gm, '<hr>');
+      html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+      html = html.replace(/((?:^[*\-] .+\n?)+)/gm, (match) => {
+        const items = match.trim().split('\n').map(l => `<li>${l.replace(/^[*\-] /, '')}</li>`).join('');
+        return `<ul>${items}</ul>`;
+      });
+      html = html.replace(/((?:^\d+\. .+\n?)+)/gm, (match) => {
+        const items = match.trim().split('\n').map(l => `<li>${l.replace(/^\d+\. /, '')}</li>`).join('');
+        return `<ol>${items}</ol>`;
+      });
+      html = html.replace(/\n(?!<[uo]l|<h[123]|<hr|<blockquote|<table)/g, '<br>');
+
+      return html + tableHtml;
+    }
+
+    // ─── EXTRACT & SHOW NEXT ACTIONS ─────────────────
+    function extractAndShowNextActions(text) {
+      const shell = document.getElementById('nextActions');
+      shell.innerHTML = '';
+      shell.classList.remove('visible');
+
+      const naMatch =
+        text.match(/\[NEXT_ACTIONS\]([\s\S]*?)\[\/NEXT_ACTIONS\]/) ||
+        text.match(/\[NEXT_ACTIONS\]([\s\S]*)/);
+      if (!naMatch) return;
+
+      const actions = naMatch[1]
+        .split('\n')
+        .map(l => l.trim())
+        .filter(Boolean)
+        .filter(l => !l.includes('NEXT_ACTIONS'))
+        .filter(l => !l.includes('</function>'))
+
+      if (!actions.length) return;
+
+      actions.forEach(action => {
+        const btn = document.createElement('button');
+        btn.className = 'next-action-btn';
+        btn.textContent = action;
+        btn.onclick = () => {
+          input.value = action;
+          input.focus();
+        };
+        shell.appendChild(btn);
+      });
+
+      shell.classList.add('visible');
+    }
+
+    // ─── EDIT PROMPT ──────────────────────────────────
+    function editPrompt(text, index) {
+      editingIndex = index;
+      document.getElementById('editBanner').style.display = 'flex';
+      input.value = text;
+      input.focus();
+    }
+
+    function cancelEdit() {
+      editingIndex = null;
+      document.getElementById('editBanner').style.display = 'none';
+      input.value = '';
+    }
+
+    function fmtHours(h) {
+      if (h < 1) return `${Math.round(h * 60)}m`;
+      if (h < 24) return `${Math.round(h)}h`;
+
+      const d = Math.floor(h / 24);
+      const rem = Math.round(h % 24);
+
+      return rem > 0 ? `${d}d ${rem}h` : `${d}d`;
+    }
+
+    function ticketPriority(hoursOpen, issueType) {
+      const type = (issueType || '').toLowerCase();
+
+      if (hoursOpen >= 18 || type.includes('outage')) return 'High';
+      if (hoursOpen >= 8 || type.includes('drop')) return 'Medium';
+
+      return 'Low';
+    }
+
+    function issueTagClass(type) {
+      const t = (type || '').toLowerCase();
+
+      if (t.includes('call')) return 'itag-call';
+      if (t.includes('data')) return 'itag-data';
+      if (t.includes('bill')) return 'itag-billing';
+
+      return 'itag-network';
+    }
+
+    async function loadTicketPanel() {
+
+      const tRes = await fetch('/api/tickets');
+      const nRes = await fetch('/api/network-events');
+
+      const tickets = tRes.ok ? await tRes.json() : [];
+      const events = nRes.ok ? await nRes.json() : [];
+
+      const openTickets = tickets.filter(t => t.status === 'Open');
+
+      allOpenTickets = openTickets;
+
+
+      document.getElementById('ovOpen').textContent = openTickets.length;
+
+      const now = new Date();
+
+      if (openTickets.length) {
+        const oldest = Math.max(...openTickets.map(t => {
+          return (now - new Date(t.created_at.replace(' ', 'T'))) / 36e5;
+        }));
+
+        document.getElementById('ovOldest').textContent = fmtHours(oldest);
+      }
+
+      const tagsEl = document.getElementById('issueTags');
+      tagsEl.innerHTML = '';
+
+      const counts = {};
+
+      openTickets.forEach(t => {
+        counts[t.issue_type] = (counts[t.issue_type] || 0) + 1;
+      });
+
+      Object.entries(counts).forEach(([type, count]) => {
+        const span = document.createElement('span');
+        span.className = `itag ${issueTagClass(type)}`;
+        span.textContent = `${count}× ${type}`;
+        tagsEl.appendChild(span);
+      });
+
+      renderTicketRows(openTickets);
+
+      if (selectedArea) {
+
+        document.getElementById('ovArea').textContent = selectedArea;
+
+        document.getElementById('clearAreaBtn').style.display = 'inline-flex';
+
+        const filteredEvents = events.filter(e =>
+          (e.location || '')
+            .toLowerCase()
+            .includes(selectedArea.toLowerCase())
+        );
+
+        renderNetworkEvents(filteredEvents);
+
+      } else {
+
+        document.getElementById('ovArea').textContent = 'ALL';
+
+        document.getElementById('clearAreaBtn').style.display = 'none';
+
+        renderNetworkEvents(events);
+      }
+    }
+
+    function renderTicketRows(tickets) {
+
+
+
+      const rowsEl = document.getElementById('activeTicketRows');
+      rowsEl.innerHTML = '';
+
+      const now = new Date();
+
+      if (!tickets.length) {
+        rowsEl.innerHTML = `
+    <div style="padding:14px 0;color:var(--t3);font-size:13px;">
+      No matching tickets
+    </div>
+  `;
+        return;
+      }
+
+      tickets.forEach(t => {
+
+        const hoursOpen =
+          (now - new Date(t.created_at.replace(' ', 'T'))) / 36e5;
+
+        const priority = ticketPriority(hoursOpen, t.issue_type);
+
+        const row = document.createElement('div');
+
+        row.className = 'ticket-table-row';
+
+        row.onclick = () => selectTicketArea(t.location || '');
+
+        row.innerHTML = `
+      <span class="ttr-id">${t.ticket_id}</span>
+      <span class="ttr-type">${t.issue_type}</span>
+      <span class="priority-pill p-${priority.toLowerCase()}">${priority}</span>
+      <span>${fmtHours(hoursOpen)}</span>
+    `;
+
+        rowsEl.appendChild(row);
+      });
+    }
+
+    function selectTicketArea(area) {
+
+      selectedArea = area;
+
+      loadTicketPanel();
+    }
+
+    function renderNetworkEvents(events) {
+
+      const el = document.getElementById('networkEventRows');
+
+      el.innerHTML = '';
+
+      if (!events.length) {
+
+        el.innerHTML = `
+      <div class="ne-row">
+        <div class="ne-ico">✅</div>
+        <div class="ne-body">
+          <div class="ne-title">No Active Events</div>
+          <div class="ne-sub">No outages in this area</div>
+        </div>
+      </div>
+    `;
+
+        return;
+      }
+
+      events.forEach(ev => {
+
+        const active = ev.end_time === null;
+
+        const row = document.createElement('div');
+
+        row.className = 'ne-row';
+
+        row.innerHTML = `
+      <div class="ne-ico">${active ? '📡' : '✅'}</div>
+
+      <div class="ne-body">
+        <div class="ne-title">${ev.event_type}</div>
+        <div class="ne-sub">
+          ${ev.location} · ${ev.affected_customers || 0} affected
+        </div>
+      </div>
+
+      <span class="ne-badge ${active ? 'red' : 'green'}">
+        ${active ? 'ACTIVE' : 'RESOLVED'}
+      </span>
+    `;
+
+        el.appendChild(row);
+      });
+    }
+
+    function filterTickets() {
+
+      const q =
+        document.getElementById('ticketSearch')
+          .value
+          .toLowerCase();
+
+      const filtered = allOpenTickets.filter(t =>
+        (t.ticket_id || '').toLowerCase().includes(q) ||
+        (t.issue_type || '').toLowerCase().includes(q)
+      );
+
+      renderTicketRows(filtered);
+    }
+
+    // ─── SEND MESSAGE ─────────────────────────────────
+    async function sendMessage() {
+      const text = input.value.trim();
+      if (!text) return;
+
+      const welcome = document.getElementById('welcomeScreen');
+
+      if (welcome) {
+        chat.innerHTML = '';
+      }
+
+      if (activeController) activeController.abort();
+      activeController = new AbortController();
+
+      // Clear next actions on new send
+      const nextActionsEl = document.getElementById('nextActions');
+      nextActionsEl.innerHTML = '';
+      nextActionsEl.classList.remove('visible');
+
+      let messageIndex;
+
+      if (editingIndex !== null) {
+        messageIndex = editingIndex;
+        conversation = conversation.slice(0, editingIndex);
+        const allRows = Array.from(chat.querySelectorAll('.message-row'));
+        const domRowsToKeep = editingIndex * 2;
+        while (chat.querySelectorAll('.message-row').length > domRowsToKeep) {
+          chat.removeChild(chat.lastChild);
+        }
+        editingIndex = null;
+        document.getElementById('editBanner').style.display = 'none';
+      } else {
+        messageIndex = conversation.length;
+      }
+
+      conversation.push({ role: 'user', content: text });
+      addUserMessage(text, messageIndex);
+      input.value = '';
+      sendBtn.disabled = true;
+
+      const assistantDiv = addMessage('<span class="typing">ARIA is investigating…</span>', 'assistant');
+
+      try {
+        const response = await fetch('/api/agent/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: conversation }),
+          signal: activeController.signal
+        });
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split('\n\n');
+          buffer = parts.pop();
+
+          for (const part of parts) {
+            if (!part.startsWith('data: ')) continue;
+            const jsonStr = part.slice(6).trim();
+            if (!jsonStr) continue;
+
+            let data;
+            try { data = JSON.parse(jsonStr); } catch { continue; }
+
+            if (data.type === 'final') {
+              const rendered = renderMarkdown(data.text);
+              assistantDiv.innerHTML = rendered || '<span style="color:var(--t3);font-style:italic;">Done — see suggested actions below.</span>';
+              conversation.push({ role: 'assistant', content: data.text });
+              extractAndShowNextActions(data.text);
+              scrollBottom();
+            }
+            // 'tool_call', 'tool_result', 'done' are intentionally ignored in the UI
+          }
+        }
+
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          assistantDiv.innerHTML = '<span style="color:var(--t3);font-style:italic;">Request cancelled.</span>';
+          conversation.pop();
+        } else {
+          assistantDiv.innerHTML = `<span style="color:#D9482B;">Error: ${escapeHtml(err.message)}</span>`;
+        }
+      } finally {
+        sendBtn.disabled = false;
+        activeController = null;
+      }
+    }
+
+    // ─── KEYBOARD SHORTCUT ────────────────────────────
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      await loadTicketPanel();
+
+      setInterval(() => {
+        loadTicketPanel();
+      }, 30000);
+    });
+  </script>
+
+</body>
+
+</html>

@@ -2,7 +2,7 @@ import sqlite3
 import os
 from groq import Groq
 from dotenv import load_dotenv
-from prompts.prompt_templates import SQL_AGENT_SYSTEM_PROMPT
+from prompts.trash import SQL_AGENT_SYSTEM_PROMPT
 
 load_dotenv()
 

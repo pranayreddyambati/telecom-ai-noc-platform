@@ -1,651 +1,369 @@
-import sys
-import os
+import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, Response, request, jsonify, render_template, redirect, stream_with_context, url_for
 from agents.triage_agent import triage_complaint
 from agents.sql_agent import get_customer_data, check_network_in_location
 from agents.resolution_agent import generate_resolution
+import sqlite3, uuid, datetime, json
+from groq import Groq
+from prompts import templates
+import re
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='templates', static_folder='static')
+DB_PATH = "db/telecom.db"
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-HTML_PAGE = '''
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>TelecomAI Analyst</title>
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Exo+2:wght@300;400;600&display=swap" rel="stylesheet"/>
-<style>
-  :root {
-    --bg: #030b14;
-    --surface: #071628;
-    --border: #0a3a5c;
-    --accent: #00d4ff;
-    --accent2: #ff6b35;
-    --green: #00ff88;
-    --red: #ff3366;
-    --yellow: #ffd700;
-    --text: #c8e6f5;
-    --muted: #4a7a99;
-  }
+def qdb(sql, args=()):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute(sql, args) 
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows
 
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Exo 2', sans-serif;
-    min-height: 100vh;
-    overflow-x: hidden;
-  }
-
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background:
-      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0,212,255,0.08) 0%, transparent 60%),
-      repeating-linear-gradient(0deg, transparent, transparent 60px, rgba(0,212,255,0.02) 60px, rgba(0,212,255,0.02) 61px),
-      repeating-linear-gradient(90deg, transparent, transparent 60px, rgba(0,212,255,0.02) 60px, rgba(0,212,255,0.02) 61px);
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
-
-  /* HEADER */
-  header {
-    padding: 28px 0 20px;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 40px;
-    position: relative;
-  }
-  header::after {
-    content: '';
-    position: absolute;
-    bottom: -1px; left: 0;
-    width: 200px; height: 2px;
-    background: linear-gradient(90deg, var(--accent), transparent);
-  }
-  .header-inner { display: flex; align-items: center; gap: 18px; }
-  .logo-icon {
-    width: 48px; height: 48px;
-    border: 2px solid var(--accent);
-    border-radius: 8px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 22px;
-    box-shadow: 0 0 20px rgba(0,212,255,0.3), inset 0 0 10px rgba(0,212,255,0.05);
-    animation: pulse-border 3s ease-in-out infinite;
-  }
-  @keyframes pulse-border {
-    0%,100% { box-shadow: 0 0 20px rgba(0,212,255,0.3), inset 0 0 10px rgba(0,212,255,0.05); }
-    50% { box-shadow: 0 0 35px rgba(0,212,255,0.6), inset 0 0 15px rgba(0,212,255,0.1); }
-  }
-  .header-text h1 {
-    font-family: 'Orbitron', monospace;
-    font-size: 22px; font-weight: 900;
-    color: var(--accent);
-    letter-spacing: 3px;
-    text-transform: uppercase;
-  }
-  .header-text p {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 11px; color: var(--muted);
-    letter-spacing: 2px; margin-top: 3px;
-  }
-  .status-bar {
-    margin-left: auto;
-    display: flex; gap: 16px; align-items: center;
-  }
-  .status-dot {
-    display: flex; align-items: center; gap: 6px;
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 11px; color: var(--muted);
-  }
-  .dot {
-    width: 7px; height: 7px; border-radius: 50%;
-    background: var(--green);
-    box-shadow: 0 0 8px var(--green);
-    animation: blink 2s ease-in-out infinite;
-  }
-  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
-
-  /* MAIN GRID */
-  .main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px; }
-
-  /* PANELS */
-  .panel {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 24px;
-    position: relative;
-    overflow: hidden;
-  }
-  .panel::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, var(--accent), transparent);
-    opacity: 0.5;
-  }
-  .panel-title {
-    font-family: 'Orbitron', monospace;
-    font-size: 11px; font-weight: 700;
-    color: var(--accent);
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    margin-bottom: 20px;
-    display: flex; align-items: center; gap: 8px;
-  }
-  .panel-title::before {
-    content: '';
-    width: 3px; height: 14px;
-    background: var(--accent);
-    border-radius: 2px;
-    box-shadow: 0 0 8px var(--accent);
-  }
-
-  /* FORM ELEMENTS */
-  .form-group { margin-bottom: 18px; }
-  label {
-    display: block;
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 11px; color: var(--muted);
-    letter-spacing: 2px; text-transform: uppercase;
-    margin-bottom: 8px;
-  }
-  select, textarea {
-    width: 100%;
-    background: rgba(0,212,255,0.03);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
-    font-family: 'Exo 2', sans-serif;
-    font-size: 14px;
-    padding: 12px 16px;
-    transition: border-color 0.2s, box-shadow 0.2s;
-    outline: none;
-    appearance: none;
-  }
-  select:focus, textarea:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(0,212,255,0.1);
-  }
-  textarea { resize: vertical; min-height: 110px; line-height: 1.6; }
-
-  .btn-analyze {
-    width: 100%;
-    padding: 15px;
-    background: linear-gradient(135deg, rgba(0,212,255,0.15), rgba(0,212,255,0.05));
-    border: 1px solid var(--accent);
-    border-radius: 8px;
-    color: var(--accent);
-    font-family: 'Orbitron', monospace;
-    font-size: 13px; font-weight: 700;
-    letter-spacing: 3px;
-    cursor: pointer;
-    transition: all 0.2s;
-    text-transform: uppercase;
-    margin-top: 6px;
-  }
-  .btn-analyze:hover {
-    background: linear-gradient(135deg, rgba(0,212,255,0.25), rgba(0,212,255,0.1));
-    box-shadow: 0 0 30px rgba(0,212,255,0.2);
-    transform: translateY(-1px);
-  }
-  .btn-analyze:disabled {
-    opacity: 0.4; cursor: not-allowed; transform: none;
-  }
-
-  /* QUICK CASES */
-  .quick-cases { display: flex; flex-direction: column; gap: 10px; }
-  .case-btn {
-    padding: 12px 16px;
-    background: rgba(255,107,53,0.05);
-    border: 1px solid rgba(255,107,53,0.2);
-    border-radius: 8px;
-    color: var(--text);
-    font-family: 'Exo 2', sans-serif;
-    font-size: 13px;
-    cursor: pointer;
-    transition: all 0.2s;
-    text-align: left;
-    display: flex; align-items: center; gap: 10px;
-  }
-  .case-btn:hover {
-    border-color: var(--accent2);
-    background: rgba(255,107,53,0.1);
-    transform: translateX(4px);
-  }
-  .case-tag {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 10px;
-    padding: 2px 8px;
-    border-radius: 4px;
-    flex-shrink: 0;
-  }
-  .tag-network { background: rgba(0,212,255,0.15); color: var(--accent); }
-  .tag-billing { background: rgba(255,211,0,0.15); color: var(--yellow); }
-  .tag-service { background: rgba(0,255,136,0.15); color: var(--green); }
-
-  /* RESULTS */
-  .results-panel { grid-column: 1 / -1; display: none; }
-  .results-panel.visible { display: block; }
-
-  .loading-state {
-    display: none;
-    text-align: center;
-    padding: 50px 20px;
-  }
-  .loading-state.visible { display: block; }
-  .spinner {
-    width: 50px; height: 50px;
-    border: 3px solid var(--border);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    margin: 0 auto 20px;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .loading-text {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 13px; color: var(--accent);
-    letter-spacing: 2px;
-  }
-  .loading-steps { margin-top: 16px; }
-  .loading-step {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 11px; color: var(--muted);
-    padding: 4px 0;
-    opacity: 0;
-    animation: fadeIn 0.5s forwards;
-  }
-  @keyframes fadeIn { to { opacity: 1; } }
-
-  /* RESULT CARDS */
-  .result-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
-
-  .result-card {
-    background: rgba(0,0,0,0.3);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 18px;
-  }
-  .result-card-label {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 10px; color: var(--muted);
-    letter-spacing: 2px; text-transform: uppercase;
-    margin-bottom: 10px;
-  }
-  .result-card-value {
-    font-family: 'Orbitron', monospace;
-    font-size: 16px; font-weight: 700;
-  }
-  .val-network { color: var(--accent); }
-  .val-billing { color: var(--yellow); }
-  .val-high { color: var(--red); }
-  .val-medium { color: var(--yellow); }
-  .val-low { color: var(--green); }
-  .val-yes { color: var(--red); }
-  .val-no { color: var(--green); }
-
-  .keywords-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-  .keyword-chip {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 10px;
-    padding: 3px 10px;
-    background: rgba(0,212,255,0.08);
-    border: 1px solid rgba(0,212,255,0.2);
-    border-radius: 20px;
-    color: var(--accent);
-  }
-
-  /* RESOLUTION BOX */
-  .resolution-box {
-    background: rgba(0,0,0,0.4);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 24px;
-    font-size: 14px;
-    line-height: 1.8;
-    white-space: pre-wrap;
-    font-family: 'Exo 2', sans-serif;
-    color: var(--text);
-  }
-  .resolution-box strong, .resolution-box b {
-    color: var(--accent);
-    font-weight: 600;
-  }
-
-  /* NETWORK EVENTS */
-  .network-alert {
-    background: rgba(255,51,102,0.08);
-    border: 1px solid rgba(255,51,102,0.3);
-    border-radius: 8px;
-    padding: 12px 16px;
-    margin-bottom: 12px;
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 12px;
-    color: var(--red);
-    display: flex; align-items: center; gap: 10px;
-  }
-  .network-ok {
-    background: rgba(0,255,136,0.05);
-    border: 1px solid rgba(0,255,136,0.2);
-    border-radius: 8px;
-    padding: 12px 16px;
-    margin-bottom: 12px;
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 12px;
-    color: var(--green);
-    display: flex; align-items: center; gap: 10px;
-  }
-
-  /* CUSTOMER INFO */
-  .customer-row {
-    display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;
-  }
-  .info-chip {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 11px;
-    padding: 5px 12px;
-    background: rgba(0,212,255,0.06);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--text);
-  }
-  .info-chip span { color: var(--accent); margin-right: 4px; }
-
-  /* ERROR */
-  .error-box {
-    background: rgba(255,51,102,0.08);
-    border: 1px solid rgba(255,51,102,0.3);
-    border-radius: 8px;
-    padding: 20px;
-    color: var(--red);
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 13px;
-    display: none;
-  }
-  .error-box.visible { display: block; }
-
-  @media (max-width: 700px) {
-    .main-grid { grid-template-columns: 1fr; }
-    .result-grid { grid-template-columns: 1fr 1fr; }
-    .status-bar { display: none; }
-  }
-</style>
-</head>
-<body>
-<div class="container">
-
-  <header>
-    <div class="header-inner">
-      <div class="logo-icon">📡</div>
-      <div class="header-text">
-        <h1>TelecomAI Analyst</h1>
-        <p>NETWORK OPERATIONS CENTER // AI-POWERED SUPPORT SYSTEM</p>
-      </div>
-      <div class="status-bar">
-        <div class="status-dot"><div class="dot"></div> AI ONLINE</div>
-        <div class="status-dot"><div class="dot" style="background:var(--green);box-shadow:0 0 8px var(--green)"></div> DB CONNECTED</div>
-      </div>
-    </div>
-  </header>
-
-  <div class="main-grid">
-
-    <!-- INPUT PANEL -->
-    <div class="panel">
-      <div class="panel-title">New Support Request</div>
-      <div class="form-group">
-        <label>Customer ID</label>
-        <select id="customerId">
-          <option value="C001">C001 — Ravi Kumar (Hyderabad)</option>
-          <option value="C002">C002 — Priya Sharma (Mumbai)</option>
-          <option value="C003">C003 — John Doe (Delhi)</option>
-          <option value="C004">C004 — Anjali Singh (Bangalore)</option>
-          <option value="C005">C005 — Mohammed Ali (Chennai)</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Customer Complaint</label>
-        <textarea id="complaint" placeholder="Describe the customer's issue in detail..."></textarea>
-      </div>
-      <button class="btn-analyze" id="analyzeBtn" onclick="analyze()">
-        ⚡ Analyze &amp; Resolve
-      </button>
-    </div>
-
-    <!-- QUICK CASES PANEL -->
-    <div class="panel">
-      <div class="panel-title">Quick Test Cases</div>
-      <div class="quick-cases">
-        <button class="case-btn" onclick="loadCase('C001', 'My 5G signal has been gone since this morning, I cannot make calls!')">
-          <span class="case-tag tag-network">NETWORK</span>
-          5G signal loss — unable to make calls
-        </button>
-        <button class="case-btn" onclick="loadCase('C002', 'Internet is extremely slow, videos keep buffering and I cannot work from home')">
-          <span class="case-tag tag-network">NETWORK</span>
-          Slow internet — buffering issues
-        </button>
-        <button class="case-btn" onclick="loadCase('C003', 'I was charged twice on my bill this month, please refund immediately')">
-          <span class="case-tag tag-billing">BILLING</span>
-          Duplicate charge on monthly bill
-        </button>
-        <button class="case-btn" onclick="loadCase('C004', 'My calls keep dropping every 2-3 minutes, very frustrating')">
-          <span class="case-tag tag-network">NETWORK</span>
-          Call dropping frequently
-        </button>
-        <button class="case-btn" onclick="loadCase('C005', 'No internet connection for the past 2 days, I need it urgently')">
-          <span class="case-tag tag-service">SERVICE</span>
-          Complete internet outage — 2 days
-        </button>
-      </div>
-    </div>
-
-    <!-- RESULTS PANEL -->
-    <div class="panel results-panel" id="resultsPanel">
-      <div class="panel-title">Analysis Report</div>
-
-      <!-- Loading -->
-      <div class="loading-state" id="loadingState">
-        <div class="spinner"></div>
-        <div class="loading-text">PROCESSING REQUEST</div>
-        <div class="loading-steps" id="loadingSteps"></div>
-      </div>
-
-      <!-- Error -->
-      <div class="error-box" id="errorBox"></div>
-
-      <!-- Results -->
-      <div id="resultContent" style="display:none">
-
-        <div class="customer-row" id="customerRow"></div>
-
-        <div id="networkEventsDiv"></div>
-
-        <div class="result-grid" id="triageGrid"></div>
-
-        <div class="panel-title" style="margin-bottom:14px; margin-top:4px;">Resolution Plan</div>
-        <div class="resolution-box" id="resolutionBox"></div>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<script>
-  function loadCase(customerId, complaint) {
-    document.getElementById('customerId').value = customerId;
-    document.getElementById('complaint').value = complaint;
-    document.getElementById('complaint').focus();
-  }
-
-  const loadingMessages = [
-    "🔍 Triage Agent classifying complaint...",
-    "🗄️  SQL Agent querying customer database...",
-    "📡 Checking network events in region...",
-    "🛠️  Resolution Agent generating fix plan...",
-    "📊 Compiling final report..."
-  ];
-
-  function showLoadingSteps() {
-    const container = document.getElementById('loadingSteps');
-    container.innerHTML = '';
-    loadingMessages.forEach((msg, i) => {
-      const div = document.createElement('div');
-      div.className = 'loading-step';
-      div.textContent = msg;
-      div.style.animationDelay = `${i * 0.7}s`;
-      container.appendChild(div);
-    });
-  }
-
-  function priorityClass(p) {
-    const m = {'High':'val-high','Medium':'val-medium','Low':'val-low'};
-    return m[p] || 'val-medium';
-  }
-  function categoryClass(c) {
-    return c === 'Network' ? 'val-network' : c === 'Billing' ? '' : 'val-no';
-  }
-
-  async function analyze() {
-    const customerId = document.getElementById('customerId').value;
-    const complaint = document.getElementById('complaint').value.trim();
-    if (!complaint) { alert('Please enter a complaint!'); return; }
-
-    const btn = document.getElementById('analyzeBtn');
-    btn.disabled = true;
-    btn.textContent = '⏳ Analyzing...';
-
-    // Show panel + loading
-    const panel = document.getElementById('resultsPanel');
-    panel.classList.add('visible');
-    document.getElementById('loadingState').classList.add('visible');
-    document.getElementById('resultContent').style.display = 'none';
-    document.getElementById('errorBox').classList.remove('visible');
-    showLoadingSteps();
-    panel.scrollIntoView({behavior:'smooth', block:'start'});
-
-    try {
-      const res = await fetch('/analyze', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({customer_id: customerId, complaint})
-      });
-      const data = await res.json();
-
-      if (data.error) throw new Error(data.error);
-
-      // Hide loading
-      document.getElementById('loadingState').classList.remove('visible');
-      document.getElementById('resultContent').style.display = 'block';
-
-      // Customer info
-      const c = data.customer;
-      document.getElementById('customerRow').innerHTML = `
-        <div class="info-chip"><span>ID</span>${c.customer_id}</div>
-        <div class="info-chip"><span>NAME</span>${c.name}</div>
-        <div class="info-chip"><span>PLAN</span>${c.plan}</div>
-        <div class="info-chip"><span>LOCATION</span>${c.location}</div>
-        <div class="info-chip"><span>STATUS</span>${c.account_status}</div>
-      `;
-
-      // Network events
-      const ne = data.network_events;
-      const neDiv = document.getElementById('networkEventsDiv');
-      if (ne && ne.length > 0) {
-        neDiv.innerHTML = ne.map(e => `
-          <div class="network-alert">
-            ⚠️ ${e.event_type} — Severity: ${e.severity} — ${e.affected_customers} customers affected
-          </div>`).join('');
-      } else {
-        neDiv.innerHTML = `<div class="network-ok">✅ No active network events detected in ${c.location}</div>`;
-      }
-
-      // Triage grid
-      const t = data.triage;
-      const keywords = (t.keywords || []).map(k => `<span class="keyword-chip">${k}</span>`).join('');
-      document.getElementById('triageGrid').innerHTML = `
-        <div class="result-card">
-          <div class="result-card-label">Issue Category</div>
-          <div class="result-card-value ${categoryClass(t.issue_category)}">${t.issue_category}</div>
-        </div>
-        <div class="result-card">
-          <div class="result-card-label">Priority Level</div>
-          <div class="result-card-value ${priorityClass(t.priority)}">${t.priority}</div>
-        </div>
-        <div class="result-card">
-          <div class="result-card-label">Network Check</div>
-          <div class="result-card-value ${t.needs_network_check ? 'val-yes':'val-no'}">${t.needs_network_check ? 'REQUIRED':'SKIPPED'}</div>
-        </div>
-        <div class="result-card" style="grid-column:1/-1">
-          <div class="result-card-label">Detected Keywords</div>
-          <div class="keywords-row">${keywords}</div>
-        </div>
-      `;
-
-      // Resolution
-      document.getElementById('resolutionBox').innerHTML =
-        data.resolution.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-
-    } catch(err) {
-      document.getElementById('loadingState').classList.remove('visible');
-      const eb = document.getElementById('errorBox');
-      eb.textContent = '❌ Error: ' + err.message;
-      eb.classList.add('visible');
-    }
-
-    btn.disabled = false;
-    btn.textContent = '⚡ Analyze & Resolve';
-  }
-</script>
-</body>
-</html>
-'''
-
+# ── PORTAL PAGES ─────────────────────────────────────
 @app.route('/')
 def index():
-    return render_template_string(HTML_PAGE)
+    return redirect(url_for('customer_portal'))
 
-@app.route('/analyze', methods=['POST'])
+@app.route('/customer')
+def customer_portal():
+    return render_template('customer.html')
+
+@app.route('/agent')
+def agent_portal():
+    return render_template('agent.html')
+
+@app.route('/noc')
+def noc_portal():
+    return render_template('noc.html')
+
+@app.route('/analyst')
+def analyst_portal():
+    return render_template('analyst.html')
+
+# ── API: CUSTOMERS ────────────────────────────────────
+@app.route('/api/customers')
+def get_customers():
+    return jsonify(qdb("SELECT * FROM customers"))
+
+@app.route('/api/customer/<customer_id>')
+def get_customer(customer_id):
+    rows = qdb("SELECT * FROM customers WHERE customer_id=?", (customer_id,))
+    if not rows:
+        return jsonify({'error': 'Customer not found'}), 404
+    return jsonify(rows[0])
+
+# ── API: TICKETS ──────────────────────────────────────
+@app.route('/api/tickets')
+def get_tickets():
+    rows = qdb("""
+        SELECT t.*, c.name, c.location, c.plan, c.phone, c.account_status
+        FROM tickets t JOIN customers c ON t.customer_id = c.customer_id
+        ORDER BY t.created_at DESC
+    """)
+    return jsonify(rows)
+
+@app.route('/api/tickets/<customer_id>')
+def get_customer_tickets(customer_id):
+    return jsonify(qdb(
+        "SELECT * FROM tickets WHERE customer_id=? ORDER BY created_at DESC",
+        (customer_id,)
+    ))
+
+@app.route('/api/tickets/create', methods=['POST'])
+def create_ticket():
+    d = request.get_json()
+    tid = 'T' + str(uuid.uuid4())[:6].upper()
+    now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("INSERT INTO tickets VALUES (?,?,?,?,?,?,?)",
+        (tid, d['customer_id'], d['issue_type'], d['description'], 'Open', now, None))
+    conn.commit(); conn.close()
+    return jsonify({'ticket_id': tid, 'status': 'created'})
+
+@app.route('/api/tickets/close/<ticket_id>', methods=['POST'])
+def close_ticket(ticket_id):
+    now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("UPDATE tickets SET status='Resolved', resolved_at=? WHERE ticket_id=?", (now, ticket_id))
+    conn.commit(); conn.close()
+    return jsonify({'status': 'closed'})
+
+# ── API: NETWORK EVENTS ───────────────────────────────
+@app.route('/api/network-events')
+def get_network_events():
+    return jsonify(qdb("SELECT * FROM network_events ORDER BY severity"))
+
+# ── API: USAGE ────────────────────────────────────────
+@app.route('/api/usage/<customer_id>')
+def get_usage(customer_id):
+    return jsonify(qdb("SELECT * FROM usage_data WHERE customer_id=?", (customer_id,)))
+
+# ── API: AI ANALYZE ───────────────────────────────────
+@app.route('/api/analyze', methods=['POST'])
 def analyze():
     try:
-        data = request.get_json()
-        customer_id = data.get('customer_id')
-        complaint = data.get('complaint')
-
-        if not customer_id or not complaint:
-            return jsonify({'error': 'Missing customer_id or complaint'}), 400
-
-        # Run the pipeline
-        triage_result = triage_complaint(complaint)
-        db_data = get_customer_data(customer_id)
+        d = request.get_json()
+        cid, complaint = d.get('customer_id'), d.get('complaint')
+        if not cid or not complaint:
+            return jsonify({'error': 'Missing fields'}), 400
+        triage = triage_complaint(complaint)
+        db_data = get_customer_data(cid)
         customer = db_data.get('customer')
-
         if not customer:
-            return jsonify({'error': f'Customer {customer_id} not found'}), 404
-
+            return jsonify({'error': f'Customer {cid} not found'}), 404
         network_events = []
-        if triage_result.get('needs_network_check'):
+        if triage.get('needs_network_check'):
             network_events = check_network_in_location(customer['location'])
-
-        resolution = generate_resolution(customer, triage_result, network_events)
-
-        return jsonify({
-            'customer': customer,
-            'triage': triage_result,
-            'network_events': network_events,
-            'resolution': resolution
-        })
-
+        resolution = generate_resolution(customer, triage, network_events)
+        return jsonify({'customer': customer, 'triage': triage,
+                        'network_events': network_events, 'resolution': resolution})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/agent/chat', methods=['POST'])
+def agent_chat():
+    data = request.get_json()
+    messages = data.get('messages', [])
+
+    system_prompt = templates.SYSTEM_PROMPT + datetime.datetime.now().strftime("%B %d, %Y %H:%M")
+
+    TOOLS = [
+        {"type":"function","function":{"name":"get_customer","description":"Fetch full customer profile by ID","parameters":{"type":"object","properties":{"customer_id":{"type":"string"}},"required":["customer_id"]}}},
+        {"type":"function","function":{"name":"get_tickets","description":"Get support tickets, optionally filter by customer_id, status (Open/Resolved/All), or location","parameters":{"type":"object","properties":{"customer_id":{"type":["string","null"]},"status":{"type":"string","enum":["Open","Resolved","All"]},"location":{"type":["string","null"]}},"required":[]}}},
+        {"type":"function","function":{"name":"get_network_events","description":"Get network outages and events, optionally filter by location or active_only","parameters":{"type":"object","properties":{"location":{"type":["string","null"]},"active_only":{"type":["boolean","null"]}},"required":[]}}},
+        {"type":"function","function":{"name":"get_usage","description":"Get data/call/SMS usage for a customer","parameters":{"type":"object","properties":{"customer_id":{"type":"string"}},"required":["customer_id"]}}},
+        {"type":"function","function":{"name":"run_sql","description":"Run a custom SELECT SQL query. Tables: customers(customer_id,name,phone,email,plan,location,account_status), tickets(ticket_id,customer_id,issue_type,description,status,created_at,resolved_at), network_events(event_id,location,event_type,severity,start_time,end_time,affected_customers), usage_data(usage_id,customer_id,month,data_used_gb,call_minutes,sms_count)","parameters":{"type":"object","properties":{"query":{"type":"string"},"explanation":{"type":"string"}},"required":["query","explanation"]}}},
+        {"type":"function","function":{"name":"check_sla_breaches","description":"Find all open tickets breaching or at risk of breaching SLA (24h threshold)","parameters":{"type":"object","properties":{}}}},
+        {"type":"function","function":{"name":"draft_bulk_sms","description":"Draft personalized SMS messages for a list of customers. Use {name} for first name, {plan} for plan name in the template","parameters":{"type":"object","properties":{"customer_ids":{"type":"array","items":{"type":"string"}},"event_type":{"type":"string"},"message_template":{"type":"string"}},"required":["customer_ids","event_type","message_template"]}}},
+        {"type":"function","function":{"name":"create_ticket","description":"Create a new support ticket for a customer","parameters":{"type":"object","properties":{"customer_id":{"type":"string"},"issue_type":{"type":"string"},"description":{"type":"string"}},"required":["customer_id","issue_type","description"]}}},
+        {"type":"function","function":{"name":"close_ticket","description":"Mark a ticket as resolved","parameters":{"type":"object","properties":{"ticket_id":{"type":"string"}},"required":["ticket_id"]}}},
+    ]
+
+    def execute_tool(name, args):
+        try:
+            if name == "get_customer":
+                rows = qdb("SELECT * FROM customers WHERE UPPER(customer_id)=UPPER(?)", (args["customer_id"],))
+                if not rows: return {"error": f"Customer {args['customer_id']} not found"}
+                c = rows[0]
+                c["open_tickets"] = len(qdb("SELECT 1 FROM tickets WHERE UPPER(customer_id)=UPPER(?) AND status='Open'", (args["customer_id"],)))
+                return c
+            elif name == "get_tickets":
+                sql = "SELECT t.*, c.name, c.location, c.plan FROM tickets t JOIN customers c ON t.customer_id=c.customer_id WHERE 1=1"
+                params = []
+                if args.get("customer_id"): sql += " AND UPPER(t.customer_id)=UPPER(?)"; params.append(args["customer_id"])
+                if args.get("status") and args["status"] != "All": sql += " AND t.status=?"; params.append(args["status"])
+                if args.get("location"): sql += " AND c.location LIKE ?"; params.append(f"%{args['location']}%")
+                sql += " ORDER BY t.created_at DESC LIMIT 20"
+                rows = qdb(sql, params)
+                for r in rows:
+                    if r.get("created_at"):
+                        h = (datetime.datetime.now() - datetime.datetime.fromisoformat(r["created_at"].replace(" ","T"))).total_seconds()/3600
+                        r["hours_open"] = round(h,1)
+                return {
+                    "success": True,
+                    "count": len(rows),
+                    "results": rows
+                }
+            elif name == "get_network_events":
+                sql = "SELECT * FROM network_events WHERE 1=1"
+                params = []
+                if args.get("location"): sql += " AND location LIKE ?"; params.append(f"%{args['location']}%")
+                if args.get("active_only"): sql += " AND end_time IS NULL"
+                rows = qdb(sql + " ORDER BY severity DESC", params)
+                return {
+                    "success": True,
+                    "count": len(rows),
+                    "results": rows
+                }
+            elif name == "get_usage":
+                rows = qdb("SELECT * FROM usage_data WHERE customer_id=? ORDER BY month DESC LIMIT 3", (args["customer_id"],))
+                return {
+                    "success": True,
+                    "count": len(rows),
+                    "results": rows
+                }
+            elif name == "run_sql":
+                q = args["query"].strip()
+                if not q.upper().startswith("SELECT"): return {"error": "Only SELECT queries allowed"}
+                rows = qdb(q)
+                return {"explanation": args.get("explanation",""), "row_count": len(rows), "results": rows}
+            elif name == "check_sla_breaches":
+                rows = qdb("SELECT t.*, c.name, c.location, c.plan FROM tickets t JOIN customers c ON t.customer_id=c.customer_id WHERE t.status='Open' ORDER BY t.created_at ASC")
+                breached, warning, ok = [], [], []
+                for r in rows:
+                    h = (datetime.datetime.now() - datetime.datetime.fromisoformat(r["created_at"].replace(" ","T"))).total_seconds()/3600
+                    r["hours_open"] = round(h,1)
+                    if h >= 24: breached.append(r)
+                    elif h >= 18: warning.append(r)
+                    else: ok.append(r)
+                return {"breached": breached, "warning": warning, "ok": ok, "summary": f"{len(breached)} breached, {len(warning)} at risk, {len(ok)} healthy"}
+            elif name == "draft_bulk_sms":
+                messages_out = []
+                for cid in args.get("customer_ids", []):
+                    rows = qdb("SELECT * FROM customers WHERE customer_id=?", (cid,))
+                    if rows:
+                        c = rows[0]
+                        msg = args["message_template"].replace("{name}", c["name"].split()[0]).replace("{plan}", c["plan"]).replace("{id}", cid)
+                        messages_out.append({"customer_id": cid, "name": c["name"], "phone": c["phone"], "message": msg})
+                return {"event_type": args["event_type"], "count": len(messages_out), "messages": messages_out}
+            
+            elif name == "create_ticket":
+                tid = 'T' + str(uuid.uuid4())[:6].upper()
+                now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
+                conn = sqlite3.connect(DB_PATH)
+                conn.execute("INSERT INTO tickets VALUES (?,?,?,?,?,?,?)",(tid,args["customer_id"],args["issue_type"],args["description"],"Open",now,None))
+
+                conn.commit()
+                conn.close()
+
+                return {
+                    "success": True,
+                    "ticket_id": tid,
+                    "customer_id": args["customer_id"],
+                    "issue_type": args["issue_type"],
+                    "description": args["description"],
+                    "status": "Open",
+                    "created_at": now
+                }
+            
+            elif name == "close_ticket":
+                tid = args["ticket_id"]
+                now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
+                conn = sqlite3.connect(DB_PATH)
+                cur = conn.cursor()
+                cur.execute("UPDATE tickets SET status='Resolved', resolved_at=? WHERE ticket_id=?", (now, tid))
+                conn.commit() 
+                updated = cur.rowcount
+                conn.close()
+                if updated == 0:
+                    return {
+                        "success": False,
+                        "error": f"Ticket {tid} not found"
+                    }
+
+                return {
+                    "success": True,
+                    "ticket_id": tid,
+                    "status": "Resolved",
+                    "resolved_at": now
+                }
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def generate():
+        msgs = [{"role": "system", "content": system_prompt}] + messages
+
+        for iteration in range(8):
+            response = client.chat.completions.create(
+                model="llama-3.1-8b-instant",
+                # model="llama-3.3-70b-versatile",
+                messages=msgs,
+                tools=TOOLS,
+                tool_choice="auto",
+                max_tokens=2000,
+                temperature=0.3
+            )
+            msg = response.choices[0].message
+
+            if msg.tool_calls:
+                # ✅ ONE assistant message with ALL tool calls — append ONCE before the loop
+                msgs.append({
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments
+                            }
+                        }
+                        for tc in msg.tool_calls
+                    ]
+                })
+
+                # ✅ Now execute each tool and append only tool result messages
+                for tc in msg.tool_calls:
+                    fn_name = tc.function.name
+                    fn_args = json.loads(tc.function.arguments)
+
+                    # Stream tool call to frontend
+                    yield f"data: {json.dumps({'type': 'tool_call', 'name': fn_name, 'args': fn_args})}\n\n"
+
+                    # Execute
+                    result = execute_tool(fn_name, fn_args)
+
+                    # Stream tool result to frontend
+                    yield f"data: {json.dumps({'type': 'tool_result', 'name': fn_name, 'result': result})}\n\n"
+
+                    # ✅ Only tool result message here — NO assistant message inside loop
+                    msgs.append({
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "content": json.dumps(result)
+                    })
+
+            else:
+                # AI is done — stream final response
+                final_text = msg.content or ""
+                final_text = re.sub(r'<function=\w+>.*?</function>', '', final_text, flags=re.DOTALL).strip()
+                final_text = re.sub(r'</?function.*?>', '', final_text).strip()
+
+                # ── Check if model skipped prose and only returned NEXT_ACTIONS ──
+                prose = re.sub(r'\[NEXT_ACTIONS\][\s\S]*?\[\/NEXT_ACTIONS\]', '', final_text).strip()
+
+                if not prose:
+                    # Model skipped writing a summary — force one using the tool results in context
+                    print("[ARIA] No prose detected — forcing summary call...")
+                    summary_msgs = msgs + [{
+                        "role": "user",
+                        "content": (
+                            "You forgot to write your answer. Look at the tool results above and write "
+                            "a clear 2-5 line summary of ONLY what the tools actually returned. "
+                            "Copy IDs, names, and numbers exactly as they appear in the tool results — "
+                            "do not invent, add, or change any values. "
+                            "Do NOT call any tools. Do NOT include [NEXT_ACTIONS]. Just the summary."
+                        )
+                    }]
+                    summary_resp = client.chat.completions.create(
+                        model="llama-3.1-8b-instant",
+                        messages=summary_msgs,
+                        max_tokens=400,
+                        temperature=0.2
+                    )
+                    prose = summary_resp.choices[0].message.content or "Investigation complete."
+                    # Rebuild final_text with the forced prose + original actions block
+                    actions_match = re.search(r'\[NEXT_ACTIONS\][\s\S]*?\[\/NEXT_ACTIONS\]', final_text)
+                    actions_block = actions_match.group(0) if actions_match else ""
+                    final_text = prose.strip() + ("\n\n" + actions_block if actions_block else "")
+
+                # print("\n" + "="*60)
+                # print("ARIA FINAL RESPONSE:")
+                # print("="*60)
+                # print(repr(final_text))
+                # print("="*60 + "\n")
+
+                yield f"data: {json.dumps({'type': 'final', 'text': final_text})}\n\n"
+                yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                return
+
+        # ✅ Max iterations hit — send a fallback message instead of silent done
+        yield f"data: {json.dumps({'type': 'final', 'text': 'I reached the maximum reasoning steps. Please try a more specific query.'})}\n\n"
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'}
+)
+
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
