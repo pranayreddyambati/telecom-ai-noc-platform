@@ -2,7 +2,7 @@ import json
 import os
 from groq import Groq
 from dotenv import load_dotenv
-from prompts.trash import TRIAGE_SYSTEM_PROMPT
+from prompts.supporting_agent_prompts import TRIAGE_SYSTEM_PROMPT
 
 load_dotenv()
 

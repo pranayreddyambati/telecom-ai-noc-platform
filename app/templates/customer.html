@@ -5,6 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TelecomAI — Customer Portal</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='oracle_logo.png') }}">
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap"
     rel="stylesheet" />
@@ -1175,9 +1176,31 @@
     /* ── EMPTY STATE ── */
 
     .empty {
-      text-align: center;
-      padding: 40px 20px;
-      color: var(--t3);
+      height: 100%;
+
+      min-height: 180px;
+
+      display: flex;
+      flex-direction: column;
+
+      align-items: center;
+      justify-content: center;
+
+      color: #6B7280;
+    }
+
+    .empty svg {
+      width: 54px;
+      height: 54px;
+
+      margin-bottom: 14px;
+
+      color: #D1D5DB;
+    }
+
+    .empty p {
+      font-size: 14px;
+      font-weight: 500;
     }
 
 
@@ -1427,10 +1450,17 @@
               </div>
               <div id="ticketList">
                 <div class="empty">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <path d="M22 12h-4l-3 3h-6l-3-3H2"></path>
+                    <path
+                      d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z">
+                    </path>
                   </svg>
-                  <p>No tickets found.</p>
+
+                  <p>No open tickets</p>
+
                 </div>
               </div>
             </div>
@@ -1610,7 +1640,17 @@
               <span class="ticket-time">${timeAgo(t.created_at)}</span>
             </div>
           </div>`).join('')
-          : `<div class="empty"><svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/></svg><p>No tickets — all looks good!</p></div>`;
+          : `<div class="empty"><svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M22 12h-4l-3 3h-6l-3-3H2"></path>
+    <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path>
+  </svg><p>No tickets — all looks good!</p></div>`;
 
         // plans — highlight current
         document.querySelectorAll('.plan-card').forEach(card => {

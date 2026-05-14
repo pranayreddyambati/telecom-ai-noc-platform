@@ -5,6 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TelecomAI — Agent Portal</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='oracle_logo.png') }}">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&display=swap"
     rel="stylesheet" />
 
@@ -188,11 +189,10 @@
     }
 
     .ticket-table-head {
-      display: grid;
-      grid-template-columns: 68px 1fr 46px 42px;
-      gap: 6px;
-      padding-bottom: 6px;
-      border-bottom: 1px solid #E5E7EB;
+      position: sticky;
+      top: 0;
+      background: white;
+      z-index: 5;
     }
 
     .ticket-table-row {
@@ -693,6 +693,32 @@
       min-height: 100%;
     }
 
+    .scroll-section {
+
+      overflow-y: auto;
+
+      max-height: 280px;
+
+      padding-right: 4px;
+
+      margin-top: 10px;
+    }
+
+    /* premium scrollbar */
+
+    .scroll-section::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .scroll-section::-webkit-scrollbar-thumb {
+      background: #D1D5DB;
+      border-radius: 999px;
+    }
+
+    .scroll-section::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
     .welcome-header {
       width: 100%;
 
@@ -863,6 +889,7 @@
       </div>
 
       <div class="section-block">
+
         <div class="section-header">
           <span class="section-title">Open Tickets</span>
         </div>
@@ -874,15 +901,26 @@
           <span class="tth">Age</span>
         </div>
 
-        <div id="activeTicketRows"></div>
+        <div class="scroll-section">
+
+          <div id="activeTicketRows"></div>
+
+        </div>
+
       </div>
 
       <div class="section-block">
+
         <div class="section-header">
           <span class="section-title">Network Events</span>
         </div>
 
-        <div id="networkEventRows"></div>
+        <div class="scroll-section">
+
+          <div id="networkEventRows"></div>
+
+        </div>
+
       </div>
     </div>
 
@@ -1206,7 +1244,7 @@
         tagsEl.appendChild(span);
       });
 
-      renderTicketRows(openTickets);
+      renderTicketRows(getFilteredTickets());
 
       if (selectedArea) {
 
@@ -1331,17 +1369,37 @@
 
     function filterTickets() {
 
+      renderTicketRows(getFilteredTickets());
+
+    }
+
+    function getFilteredTickets() {
+
       const q =
         document.getElementById('ticketSearch')
           .value
-          .toLowerCase();
+          .toLowerCase()
+          .trim();
 
-      const filtered = allOpenTickets.filter(t =>
-        (t.ticket_id || '').toLowerCase().includes(q) ||
-        (t.issue_type || '').toLowerCase().includes(q)
-      );
+      let filtered = [...allOpenTickets];
 
-      renderTicketRows(filtered);
+      if (q) {
+
+        filtered = filtered.filter(t =>
+
+          (t.ticket_id || '').toLowerCase().includes(q)
+
+          ||
+
+          (t.issue_type || '').toLowerCase().includes(q)
+
+          ||
+
+          (t.location || '').toLowerCase().includes(q)
+        );
+      }
+
+      return filtered;
     }
 
     // ─── SEND MESSAGE ─────────────────────────────────
